@@ -20,6 +20,7 @@ import static org.eclipse.jdt.core.IJavaElement.COMPILATION_UNIT;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,9 +40,18 @@ import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IOpenable;
+import org.eclipse.jdt.core.ISourceRange;
+import org.eclipse.jdt.core.ISourceReference;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.ITypeRoot;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.internal.core.LambdaExpression;
+import org.eclipse.jdt.internal.core.LambdaMethod;
+import org.eclipse.jdt.internal.core.SourceMethod;
 import org.eclipse.jdt.internal.corext.callhierarchy.CallHierarchyCore;
 import org.eclipse.jdt.internal.corext.callhierarchy.CallLocation;
 import org.eclipse.jdt.internal.corext.callhierarchy.MethodWrapper;
@@ -71,7 +81,7 @@ public class CallHierarchyHandler {
 		outgoingMethodWrapperCache.clear();
 
 		String uri = params.getTextDocument().getUri();
-		int line = params.getPosition().getLine();
+ 		int line = params.getPosition().getLine();
 		int character = params.getPosition().getCharacter();
 
 		try {
@@ -207,6 +217,11 @@ public class CallHierarchyHandler {
 
 		List<CallHierarchyIncomingCall> result = new ArrayList<>();
 		for (MethodWrapper call : calls) {
+			if ((call.getMember() instanceof LambdaMethod)) {
+				IMember res = (IMember) getEnclosingMethodOfLambda(call.getMember());
+				call = incomingMethodWrapperCache.containsKey(res) ? incomingMethodWrapperCache.get(res) : getCallRoot(res, true);
+			}
+			IMember member = call.getMember();
 			Collection<CallLocation> callLocations = call.getMethodCall().getCallLocations();
 			if (callLocations != null) {
 				for (CallLocation location : callLocations) {
@@ -217,8 +232,15 @@ public class CallHierarchyHandler {
 					List<Range> ranges = toCallRanges(callLocations);
 					result.add(new CallHierarchyIncomingCall(symbol, ranges));
 				}
+			} else {
+				if (member != null) {
+					IOpenable openable = getOpenable(member);
+					Range callRange = getRange(openable, member);
+					CallHierarchyItem symbol = toCallHierarchyItem(member);
+					symbol.setSelectionRange(callRange);
+					result.add(new CallHierarchyIncomingCall(symbol, Collections.singletonList(callRange)));
+				}
 			}
-			IMember member = call.getMember();
 			if (member != null) {
 				incomingMethodWrapperCache.put(member, call);
 			}
@@ -227,9 +249,32 @@ public class CallHierarchyHandler {
 		return result;
 	}
 
+	public IJavaElement getEnclosingMethodOfLambda(IJavaElement element) {
+		if (!(element instanceof LambdaMethod)) {
+			return element;
+		}
+
+		IJavaElement parent = element.getParent();
+		while(parent != null && (parent instanceof LambdaMethod || parent instanceof LambdaExpression)){
+			parent = parent.getParent();
+		}
+		return parent;
+	}
+
 	private Range getRange(IOpenable openable, CallLocation location) {
 		int[] start = JsonRpcHelpers.toLine(openable, location.getStart());
 		int[] end = JsonRpcHelpers.toLine(openable, location.getEnd());
+		Assert.isNotNull(start, "start");
+		Assert.isNotNull(end, "end");
+		// Assert.isLegal(start[0] == end[0], "Expected equal start and end lines. Start was: " + Arrays.toString(start) + " End was:" + Arrays.toString(end));
+		Range callRange = new Range(new Position(start[0], start[1]), new Position(end[0], end[1]));
+		return callRange;
+	}
+
+	private Range getRange(IOpenable openable, IMember member) throws JavaModelException {
+		ISourceRange sourceRange = member.getSourceRange();
+		int[] start = JsonRpcHelpers.toLine(openable, sourceRange.getOffset());
+		int[] end = JsonRpcHelpers.toLine(openable, sourceRange.getOffset() + sourceRange.getLength());
 		Assert.isNotNull(start, "start");
 		Assert.isNotNull(end, "end");
 		// Assert.isLegal(start[0] == end[0], "Expected equal start and end lines. Start was: " + Arrays.toString(start) + " End was:" + Arrays.toString(end));
@@ -340,6 +385,14 @@ public class CallHierarchyHandler {
 		IOpenable openable = location.getMember().getCompilationUnit();
 		if (openable == null) {
 			openable = location.getMember().getTypeRoot();
+		}
+		return openable;
+	}
+
+	private IOpenable getOpenable(IMember member) {
+		IOpenable openable = member.getCompilationUnit();
+		if (openable == null) {
+			openable = member.getTypeRoot();
 		}
 		return openable;
 	}
