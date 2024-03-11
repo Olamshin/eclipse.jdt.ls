@@ -6,7 +6,7 @@
         {
             "label": "Package",
             "type": "shell",
-            "command": "./mvnw clean -B package",
+            "command": "./mvnw -Declipse.jdt.ls.skipGradleChecksums clean -B package",
             "windows": {
                 "command": ".\\mvnw.cmd clean -B package"
             },
@@ -16,7 +16,7 @@
         {
             "label": "Verify",
             "type": "shell",
-            "command": "./mvnw -B verify",
+            "command": "./mvnw -Declipse.jdt.ls.skipGradleChecksums -B verify",
             "windows": {
                 "command": ".\\mvnw.cmd -B verify"
             },
