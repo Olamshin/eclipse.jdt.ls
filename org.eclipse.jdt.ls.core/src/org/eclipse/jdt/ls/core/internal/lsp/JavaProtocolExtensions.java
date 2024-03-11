@@ -42,6 +42,7 @@ import org.eclipse.lsp4j.CodeActionParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
+import org.eclipse.lsp4j.TextDocumentPositionParams;
 import org.eclipse.lsp4j.WorkspaceEdit;
 import org.eclipse.lsp4j.extended.ProjectConfigurationsUpdateParam;
 import org.eclipse.lsp4j.extended.ProjectBuildParams;
@@ -61,6 +62,10 @@ public interface JavaProtocolExtensions {
 
 	@JsonRequest
 	CompletableFuture<String> classFileContents(TextDocumentIdentifier documentUri);
+
+
+	@JsonRequest
+	CompletableFuture<String> plantUmlSource(TextDocumentPositionParams documentUri);
 
 	/**
 	 * Request a project configuration update

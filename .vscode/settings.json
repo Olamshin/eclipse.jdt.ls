@@ -2,5 +2,6 @@
 	"java.configuration.updateBuildConfiguration": "interactive",
 	"java.import.exclusions": [
 		"**/org.eclipse.jdt.ls.tests/projects"
-	]
+	],
+	"java.debug.settings.onBuildFailureProceed": true
 }

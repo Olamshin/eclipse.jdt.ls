@@ -32,6 +32,11 @@
 							<artifactId>java-decompiler-engine</artifactId>
 							<version>231.9011.34</version>
 						</artifactItem>
+						<artifactItem>
+							<groupId>net.sourceforge.plantuml</groupId>
+							<artifactId>plantuml-asl</artifactId>
+							<version>1.2024.3</version>
+						</artifactItem>
 					</artifactItems>
 				</configuration>
 			</plugin>

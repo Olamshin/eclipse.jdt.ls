@@ -36,8 +36,13 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.ITypeRoot;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.WorkingCopyOwner;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.launching.JavaRuntime;
 import org.eclipse.jdt.ls.core.internal.BaseJDTLanguageServer;
 import org.eclipse.jdt.ls.core.internal.BuildWorkspaceStatus;
@@ -80,6 +85,8 @@ import org.eclipse.jdt.ls.core.internal.lsp.ValidateDocumentParams;
 import org.eclipse.jdt.ls.core.internal.managers.ContentProviderManager;
 import org.eclipse.jdt.ls.core.internal.managers.ProjectsManager;
 import org.eclipse.jdt.ls.core.internal.managers.TelemetryManager;
+import org.eclipse.jdt.ls.core.internal.plantuml.uml.ClassDiagram;
+import org.eclipse.jdt.ls.core.internal.plantuml.visitors.PlantUMLGenerator;
 import org.eclipse.jdt.ls.core.internal.preferences.PreferenceManager;
 import org.eclipse.jdt.ls.core.internal.preferences.Preferences;
 import org.eclipse.lsp4j.CallHierarchyIncomingCall;
@@ -146,6 +153,7 @@ import org.eclipse.lsp4j.SignatureHelp;
 import org.eclipse.lsp4j.SignatureHelpParams;
 import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
+import org.eclipse.lsp4j.TextDocumentPositionParams;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.TypeDefinitionParams;
 import org.eclipse.lsp4j.TypeHierarchyItem;
@@ -953,6 +961,38 @@ public class JDTLanguageServer extends BaseJDTLanguageServer implements Language
 		ContentProviderManager handler = JavaLanguageServerPlugin.getContentProviderManager();
 		URI uri = JDTUtils.toURI(param.getUri());
 		return computeAsync((monitor) -> handler.getContent(uri, monitor));
+	}
+
+	@Override
+	public CompletableFuture<String> plantUmlSource(TextDocumentPositionParams param) {
+		debugTrace(">> java/plantUmlSource");
+		return computeAsync((monitor) -> {
+			ITypeRoot root = JDTUtils.resolveTypeRoot(param.getTextDocument().getUri());
+			if (root == null) {
+				return null;
+			}
+			if (root instanceof ICompilationUnit unit) {
+				if (root.getResource() == null) {
+					return null;
+				}
+				final ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
+				parser.setSource((ICompilationUnit) root);
+				parser.setResolveBindings(true);
+				parser.setKind(ASTParser.K_COMPILATION_UNIT);
+				CompilationUnit cu = (CompilationUnit) parser.createAST(monitor);
+
+				try {
+					PlantUMLGenerator gen = new PlantUMLGenerator();
+					cu.accept(gen);
+					ClassDiagram classDiagram = gen.getClassDiagram();
+					classDiagram.render();
+					return classDiagram.getPlantumlSource();
+				} catch (Exception e) {
+					JavaLanguageServerPlugin.logException(e);
+				}
+			}
+			return "test";
+		});
 	}
 
 	/* (non-Javadoc)
